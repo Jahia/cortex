@@ -10,6 +10,12 @@ building on Jahia, can consume it.
 
 > Status: cornerstone / skeleton. It ships one real agent today and grows from there.
 
+> ### cortex vs. [Jahia/agentic](https://github.com/Jahia/agentic)
+> These are **complementary, not competing**. **cortex** holds AI capabilities for
+> **developing Jahia itself** (engineering-facing). **[Jahia/agentic](https://github.com/Jahia/agentic)**
+> is broader and **customer-facing**. The two may converge in the future — nothing
+> is set in stone.
+
 ---
 
 ## Use cortex in your repo
