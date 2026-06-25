@@ -10,6 +10,10 @@ building on Jahia, can consume it.
 
 > Status: cornerstone / skeleton. It ships one real agent today and grows from there.
 
+> 🙌 **cortex grows by contribution.** Got an agent, skill, or prompt your team
+> reuses? Add it here so everyone benefits — it takes minutes.
+> **→ [Contribute to cortex](#contribute-to-cortex)**
+
 > ### cortex vs. [Jahia/agentic](https://github.com/Jahia/agentic)
 > These are **complementary, not competing**. **cortex** holds AI capabilities for
 > **developing Jahia itself** (engineering-facing). **[Jahia/agentic](https://github.com/Jahia/agentic)**
@@ -103,24 +107,12 @@ re-run `apm install` and confirm the agent landed in your assistant's path (e.g.
 
 ---
 
-## Day-to-day lifecycle
+## Updating cortex
 
-Once cortex (or any APM dependency) is declared in your `apm.yml`, these are the
-commands you'll use over time. Run them from the repo root.
-
-| Command | What it does |
-|---|---|
-| `apm install` | Install/refresh everything declared in `apm.yml` and deploy it for your targets. Safe to re-run. |
-| `apm install --frozen` | CI-safe install: fails if `apm.lock.yaml` is missing or out of sync with `apm.yml` (no ref changes). |
-| `apm outdated` | List locked dependencies that have a newer matching ref available (add `-v` to see available tags). |
-| `apm update` | Refresh dependencies to the latest matching refs and rewrite the lockfile. Shows a plan to confirm; add `--dry-run` to preview, `--yes` for CI. |
-| `apm uninstall <pkg>` | Remove a package, the files it deployed, and its `apm.yml` entry (`--dry-run` to preview). |
-| `apm prune` | Remove deployed packages that are no longer listed in `apm.yml`. |
-| `apm self-update` | Update the `apm` CLI binary itself. |
-
-### Updating cortex specifically
-
-How `apm update` behaves depends on how you referenced cortex:
+`apm install` (safe to re-run) installs and refreshes everything declared in
+`apm.yml`; `apm update` moves dependencies to newer refs. For the full command set,
+see the [APM CLI reference](https://microsoft.github.io/apm/). How `apm update`
+behaves depends on how you referenced cortex:
 
 - **Pinned to a tag** (`Jahia/cortex#v0.1.0`, recommended): `apm update` will **not**
   move you off that tag. To take a new release, bump the tag in `apm.yml`
@@ -207,13 +199,20 @@ CI, `apm install --frozen` fails if the deployed tree drifts from the lockfile.
 
 ## Contribute to cortex
 
-See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full workflow. In short: add an
-agent under `.apm/agents/<name>.agent.md`, validate locally, and open a PR.
+**This repo is meant to grow — contributions are the whole point.** If you've built
+an agent (and soon: skills, hooks, prompts) that other Jahia repos would reuse,
+please add it here instead of keeping it local. Three steps:
 
-```bash
-apm marketplace check                                 # entries resolve
-apm pack --check-versions --check-clean --dry-run     # versions + marketplace.json in sync
-```
+1. **Add** your agent under `.apm/agents/<name>.agent.md`.
+2. **Validate** locally:
+   ```bash
+   apm compile --validate                                # frontmatter + structure
+   apm marketplace check                                 # entries resolve
+   apm pack --check-versions --check-clean --dry-run     # versions + marketplace.json in sync
+   ```
+3. **Open a PR** — CI runs the same checks plus an integration self-test.
+
+Full workflow and conventions: **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ---
 
