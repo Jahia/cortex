@@ -15,9 +15,13 @@ author  ->  apm install (resolver)  ->  Claude Code
 The `cortex-selftest` agent (`.apm/agents/cortex-selftest.agent.md`) carries a
 unique token that exists nowhere else. The test creates a throwaway consumer
 project that depends on this repo, installs it for the `claude` target (the agent
-lands in `.claude/agents/`, where Claude Code discovers subagents), then asks
-Claude Code — through that subagent — for the token. If the token comes back,
-every link in the chain works.
+lands in `.claude/agents/`), then runs Claude Code **as** that agent
+(`claude --agent cortex-selftest`) and asks for the token. If the token comes
+back, every link in the chain works.
+
+The run is hermetic: `--agent` loads the agent's prompt directly, so the answer
+comes from context alone — no tools, no network, and no
+`--dangerously-skip-permissions`.
 
 ### Run locally
 
