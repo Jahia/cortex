@@ -18,48 +18,61 @@ building on Jahia, can consume it.
 
 ---
 
-## Use cortex in your repo
+## Quick start
 
-1. **Install the APM CLI** (once per machine):
+**New to APM?** APM (Agent Package Manager) installs shared AI capabilities into a
+repository from a small `apm.yml` manifest — much like npm installs packages from
+`package.json`. Install the CLI once per machine:
 
-   ```bash
-   curl -sSL https://aka.ms/apm-unix | sh      # macOS / Linux
-   # Windows (PowerShell):  irm https://aka.ms/apm-windows | iex
-   ```
+```bash
+curl -sSL https://aka.ms/apm-unix | sh      # macOS / Linux
+# Windows (PowerShell):  irm https://aka.ms/apm-windows | iex
+apm --version
+```
 
-2. **Declare the dependency** in your repo's `apm.yml`:
+Pick the path that matches your situation:
 
-   ```yaml
-   # Pick the assistant(s) you use; agents deploy to each one's location.
-   targets:
-     - claude          # also supported: copilot, codex, cursor, gemini, …
-   dependencies:
-     apm:
-       - Jahia/cortex#v0.1.0     # pin to a release tag (recommended)
-   ```
+### A. Starting from scratch (your repo has no `apm.yml` yet)
 
-   > Pin to a tag (`#v0.1.0`) to avoid drift. A bare `Jahia/cortex` tracks the
-   > default branch and APM will warn that it's unpinned. No token is needed —
-   > cortex is public.
+From the root of your repo, create an `apm.yml` that pulls in cortex:
 
-3. **Install**:
+```yaml
+# apm.yml
+name: my-repo                 # your repository's name
+version: 0.0.0
+targets:
+  - claude                    # the assistant(s) you use: claude, copilot, codex, cursor, gemini, …
+dependencies:
+  apm:
+    - Jahia/cortex#v0.1.0     # pin to a release tag (recommended)
+```
 
-   ```bash
-   apm install
-   ```
+Then install:
 
-   The agents are deployed where your assistant discovers them (e.g.
-   `.claude/agents/` for Claude Code, `.github/agents/` for Copilot). `apm install`
-   adds `apm_modules/` to your `.gitignore` automatically.
+```bash
+apm install
+```
 
-To update later, bump the pinned tag and re-run `apm install` (or `apm update`).
+cortex's agents are deployed where your assistant looks for them (e.g.
+`.claude/agents/` for Claude Code, `.github/agents/` for Copilot), and
+`apm_modules/` is added to your `.gitignore` automatically. Open your assistant
+and the capabilities are available.
 
-### What you get today
+### B. You cloned a repo that already has an `apm.yml`
 
-| Capability | Type | Purpose |
-|---|---|---|
-| `cypress-test-developer` | agent | Writes & maintains Cypress e2e tests for jExperience |
-| `cortex-selftest` | agent | Internal integration-test fixture — safe to ignore as a consumer |
+Install whatever that manifest declares:
+
+```bash
+apm install
+```
+
+This pulls every capability listed in the repo's `apm.yml` (cortex included if it's
+there) and deploys them for the configured targets. Re-run `apm install` (or
+`apm update`) whenever the manifest changes or you want newer versions.
+
+> **Pinning & access.** Pin cortex to a tag (`#v0.1.0`) to avoid drift — a bare
+> `Jahia/cortex` follows the default branch and APM warns it's unpinned. No token
+> is needed: cortex is public.
 
 ---
 
@@ -71,39 +84,6 @@ agent under `.apm/agents/<name>.agent.md`, validate locally, and open a PR.
 ```bash
 apm marketplace check                                 # entries resolve
 apm pack --check-versions --check-clean --dry-run     # versions + marketplace.json in sync
-```
-
----
-
-## How it works
-
-- **Producer layout**: `apm.yml` (plugin identity + marketplace block) and primitives
-  under `.apm/`. The checked-in `.claude-plugin/marketplace.json` is what consumers
-  resolve from; CI keeps it in sync with `apm.yml`.
-- **CI** (`.github/workflows/`):
-  - `validate.yml` — on every PR/push: `apm marketplace check`, hidden-Unicode audit,
-    and release-gate dry-run.
-  - `integration.yml` — on PRs: end-to-end test that installs this repo into a throwaway
-    consumer and verifies the content reaches **Claude Code** (gated on the
-    `ANTHROPIC_API_KEY` secret; no-ops without it).
-  - `release.yml` — on a `v*` tag: packs the bundle, adds `sha256` checksums, and
-    creates a GitHub Release.
-
-### Repository layout
-
-```
-cortex/
-  apm.yml                       # plugin identity + marketplace block (source ./)
-  plugin.json                   # plugin manifest
-  .claude-plugin/
-    marketplace.json            # generated; consumers resolve from this
-  .apm/
-    agents/                     # the shared agents
-  .github/
-    workflows/                  # validate / integration / release
-  tests/integration/            # end-to-end content test (Claude Code)
-  CONTRIBUTING.md
-  LICENSE
 ```
 
 ---
