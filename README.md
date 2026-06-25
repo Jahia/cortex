@@ -30,6 +30,11 @@ curl -sSL https://aka.ms/apm-unix | sh      # macOS / Linux
 apm --version
 ```
 
+> 📖 **Must read — [APM: Making the Case](https://microsoft.github.io/apm/enterprise/making-the-case/).**
+> Before adopting cortex across teams, read why APM exists: it brings the
+> package-manager model (declare, lock, install, audit) to AI agent configuration,
+> solving drift and governance at scale. It's the rationale behind everything below.
+
 Pick the path that matches your situation:
 
 ### A. Starting from scratch (your repo has no `apm.yml` yet)
