@@ -76,6 +76,36 @@ there) and deploys them for the configured targets. Re-run `apm install` (or
 
 ---
 
+## Day-to-day lifecycle
+
+Once cortex (or any APM dependency) is declared in your `apm.yml`, these are the
+commands you'll use over time. Run them from the repo root.
+
+| Command | What it does |
+|---|---|
+| `apm install` | Install/refresh everything declared in `apm.yml` and deploy it for your targets. Safe to re-run. |
+| `apm install --frozen` | CI-safe install: fails if `apm.lock.yaml` is missing or out of sync with `apm.yml` (no ref changes). |
+| `apm outdated` | List locked dependencies that have a newer matching ref available (add `-v` to see available tags). |
+| `apm update` | Refresh dependencies to the latest matching refs and rewrite the lockfile. Shows a plan to confirm; add `--dry-run` to preview, `--yes` for CI. |
+| `apm uninstall <pkg>` | Remove a package, the files it deployed, and its `apm.yml` entry (`--dry-run` to preview). |
+| `apm prune` | Remove deployed packages that are no longer listed in `apm.yml`. |
+| `apm self-update` | Update the `apm` CLI binary itself. |
+
+### Updating cortex specifically
+
+How `apm update` behaves depends on how you referenced cortex:
+
+- **Pinned to a tag** (`Jahia/cortex#v0.1.0`, recommended): `apm update` will **not**
+  move you off that tag. To take a new release, bump the tag in `apm.yml`
+  (e.g. `#v0.2.0`) and run `apm install`. Use `apm outdated` to see what's available.
+- **Unpinned** (`Jahia/cortex`): `apm update` pulls the latest commit on the default
+  branch and updates `apm.lock.yaml`. Convenient, but less reproducible — prefer pinning.
+
+Commit the resulting `apm.yml` (and `apm.lock.yaml`, if you keep one) so teammates
+and CI resolve the same versions.
+
+---
+
 ## Contribute to cortex
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full workflow. In short: add an
