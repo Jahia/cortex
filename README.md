@@ -8,12 +8,6 @@ repositories instead of copy-pasted. Author once here; consume everywhere via a
 small `apm.yml`. The repository is **public** — anyone, including customers
 building on Jahia, can consume it.
 
-> Status: cornerstone / skeleton. It ships one real agent today and grows from there.
-
-> 🙌 **cortex grows by contribution.** Got an agent, skill, or prompt your team
-> reuses? Add it here so everyone benefits — it takes minutes.
-> **→ [Contribute to cortex](#contribute-to-cortex)**
-
 > ### cortex vs. [Jahia/agentic](https://github.com/Jahia/agentic)
 > These are **complementary, not competing**. **cortex** holds AI capabilities for
 > **developing Jahia itself** (engineering-facing). **[Jahia/agentic](https://github.com/Jahia/agentic)**
@@ -34,10 +28,7 @@ curl -sSL https://aka.ms/apm-unix | sh      # macOS / Linux
 apm --version
 ```
 
-> 📖 **Must read — [APM: Making the Case](https://microsoft.github.io/apm/enterprise/making-the-case/).**
-> Before adopting cortex across teams, read why APM exists: it brings the
-> package-manager model (declare, lock, install, audit) to AI agent configuration,
-> solving drift and governance at scale. It's the rationale behind everything below.
+> 📖 **[APM: Making the Case](https://microsoft.github.io/apm/enterprise/making-the-case/).** quickly draw some (opinionated) benefits about the project, a good read.
 
 Pick the path that matches your situation:
 
