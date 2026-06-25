@@ -1,0 +1,28 @@
+name: cortex
+version: 0.1.0
+description: Jahia's shared AI development capabilities, distributed via APM.
+author: Jahia
+
+dependencies:
+  apm: []
+  mcp: []
+includes: auto
+devDependencies:
+  apm: []
+scripts: {}
+
+marketplace:
+  owner:
+    name: Jahia
+    url: https://github.com/Jahia
+  build:
+    tagPattern: "v{version}"
+  versioning:
+    strategy: lockstep
+  outputs:
+    claude: {}
+  packages:
+    - name: cortex
+      description: Jahia's shared AI development capabilities for building with Jahia.
+      source: ./
+      version: 0.1.0

@@ -1,0 +1,10 @@
+# APM build artifacts
+build/
+*.zip
+*.sha256
+
+# APM local cache / lock material that should not be committed by the producer
+.apm-cache/
+
+# OS / editor noise
+.DS_Store

@@ -1,0 +1,9 @@
+{
+  "name": "cortex",
+  "version": "0.1.0",
+  "description": "Jahia's shared AI development capabilities, distributed via APM.",
+  "author": {
+    "name": "Jahia"
+  },
+  "license": "MIT"
+}
