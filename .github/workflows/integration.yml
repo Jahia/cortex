@@ -1,12 +1,11 @@
-name: Integration (Copilot CLI)
+name: Integration (Claude Code)
 
-# End-to-end test of the repository's own content: pack the marketplace, install
-# the bundle into a throwaway consumer, and ask GitHub Copilot CLI (via the
-# cortex-selftest agent) for a token that lives only inside that agent. If the
-# token comes back, the author -> pack -> install -> assistant pipeline works.
+# End-to-end test of the repository's own content: install this repo into a
+# throwaway consumer for the `claude` target, then ask Claude Code (via the
+# cortex-selftest subagent) for a token that lives only inside that agent. If the
+# token comes back, the author -> install -> assistant pipeline works.
 #
-# Requires a repo/org secret COPILOT_GITHUB_TOKEN: a fine-grained PAT with the
-# "Copilot Requests" permission (the default GITHUB_TOKEN has no Copilot access).
+# Requires a repo/org secret ANTHROPIC_API_KEY (Claude Code authentication).
 # Without it the job no-ops, so forks and external PRs stay green.
 on:
   pull_request:
@@ -16,16 +15,16 @@ permissions:
   contents: read
 
 jobs:
-  copilot-selftest:
+  claude-selftest:
     runs-on: ubuntu-latest
     env:
-      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - name: Gate on Copilot token
+      - name: Gate on Anthropic API key
         id: gate
         run: |
-          if [ -z "$COPILOT_GITHUB_TOKEN" ]; then
-            echo "::notice::COPILOT_GITHUB_TOKEN not set — skipping live Copilot CLI integration test."
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::ANTHROPIC_API_KEY not set — skipping live Claude Code integration test."
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
@@ -47,10 +46,10 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install GitHub Copilot CLI
+      - name: Install Claude Code
         if: steps.gate.outputs.run == 'true'
-        run: npm install -g @github/copilot
+        run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run Copilot self-test
+      - name: Run Claude self-test
         if: steps.gate.outputs.run == 'true'
-        run: bash tests/integration/copilot-selftest.sh
+        run: bash tests/integration/claude-selftest.sh
