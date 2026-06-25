@@ -95,8 +95,6 @@ cortex/
     agents/                     # the shared agents
   .github/
     workflows/                  # validate / integration / release
-    CODEOWNERS
-    pull_request_template.md
   tests/integration/            # end-to-end content test (Claude Code)
   CONTRIBUTING.md
   LICENSE

@@ -63,7 +63,7 @@ lives only in that agent — proving packaged content reaches the assistant. See
 
 1. Branch, commit (Conventional Commits appreciated), push.
 2. Open a PR against `main`. CI runs `validate` (and the gated Claude integration test).
-3. A code owner reviews. Keep PRs small and focused.
+3. A maintainer reviews. Keep PRs small and focused.
 
 ## Releases
 
