@@ -74,6 +74,28 @@ there) and deploys them for the configured targets. Re-run `apm install` (or
 > `Jahia/cortex` follows the default branch and APM warns it's unpinned. No token
 > is needed: cortex is public.
 
+### Verify your setup
+
+cortex ships a tiny self-test agent so you can confirm the whole pipeline
+(author → `apm install` → assistant) actually reached your harness. After
+`apm install`, open your assistant and ask the `cortex-selftest` agent for its
+token. In Claude Code:
+
+```bash
+claude --agent cortex-selftest -p "What is the Cortex self-test token?"
+```
+
+A correct setup replies with exactly:
+
+```
+CORTEX-SELFTEST-OK-Zx9Q2pV7
+```
+
+If you see the token, cortex's agents are installed and discoverable — you're good
+to go. (This is the same check cortex's own CI integration test runs.) If you don't,
+re-run `apm install` and confirm the agent landed in your assistant's path (e.g.
+`.claude/agents/cortex-selftest.md`).
+
 ---
 
 ## Day-to-day lifecycle
@@ -103,6 +125,78 @@ How `apm update` behaves depends on how you referenced cortex:
 
 Commit the resulting `apm.yml` (and `apm.lock.yaml`, if you keep one) so teammates
 and CI resolve the same versions.
+
+---
+
+## Keeping your own agents alongside cortex
+
+Pulling cortex does **not** lock you into only shared capabilities. A repo can keep
+its own private agents/skills next to the ones it installs, and `apm install` makes
+them coexist cleanly.
+
+**APM only manages what it deployed.** Every install records the exact files it
+wrote in `apm.lock.yaml` — dependency files under `deployed_files` and your repo's
+own under `local_deployed_files`, each with a content hash. `apm install`,
+`apm update`, `apm prune`, and `apm uninstall` only ever touch files in that
+ledger. Anything else in `.claude/agents/` (or another harness path) that APM
+didn't create is left untouched.
+
+### Recommended: author your own primitives in `.apm/`
+
+Mirror how cortex itself works — put your repo-local agents in `.apm/agents/` and
+let APM compile and deploy them alongside cortex's. Keep `includes: auto` in your
+`apm.yml` (the default):
+
+```
+your-repo/
+  apm.yml                       # includes: auto  +  Jahia/cortex#v0.1.0
+  .apm/
+    agents/
+      my-team-agent.agent.md    # your own, authored locally
+```
+
+```yaml
+# apm.yml
+name: your-repo
+version: 0.0.0
+targets:
+  - claude
+includes: auto                  # compile this repo's own .apm/ content too
+dependencies:
+  apm:
+    - Jahia/cortex#v0.1.0
+```
+
+`apm install` then deploys **both** into `.claude/agents/`:
+
+```
+  [+] Jahia/cortex #v0.1.0      |-- 2 agents integrated -> .claude/agents/
+  [+] <project root> (local)    |-- 1 agents integrated -> .claude/agents/
+```
+
+This keeps a single source of truth (`.apm/`), gives you the same validation
+(`apm compile --validate`) cortex uses, and means `.claude/` is fully reproducible
+from `apm install`.
+
+> **Name collisions = local override.** If your local `.apm/` agent has the **same
+> `name`** as a cortex agent, your local one is deployed last and **wins** (it
+> overrides the installed copy). Use distinct names unless overriding is what you
+> intend.
+
+### Alternative: hand-place files directly in `.claude/`
+
+You can also drop a file straight into `.claude/agents/my-agent.md` without going
+through `.apm/`. APM won't manage or remove it (it's not in the lock), so it
+survives installs and updates — but you lose APM validation and the single-source
+guarantee. Prefer the `.apm/` approach above unless you have a reason not to.
+
+### Committing deployed files
+
+The simplest, most portable choice is to **commit** `apm.yml`, `apm.lock.yaml`, and
+the deployed `.claude/` files. Teammates and CI then get the capabilities without
+needing to run `apm install`, and diffs show exactly what changed. (`apm_modules/`
+— the dependency cache — is gitignored for you automatically; never commit it.) In
+CI, `apm install --frozen` fails if the deployed tree drifts from the lockfile.
 
 ---
 
