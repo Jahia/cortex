@@ -1,0 +1,46 @@
+name: Validate
+
+# Gate every change to the APM producer:
+#   - marketplace entries resolve
+#   - no hidden Unicode in primitive sources
+#   - release gates (version alignment + checked-in marketplace.json in sync)
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install APM CLI
+        # Official install script (https://microsoft.github.io/apm/), pinned.
+        run: |
+          curl -sSL https://aka.ms/apm-unix | APM_INSTALL_DIR="$HOME/.local/bin" sh -s -- @v0.21.0
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify APM CLI
+        run: apm --version
+
+      - name: Marketplace check
+        run: apm marketplace check --verbose
+
+      - name: Audit primitives for hidden Unicode
+        run: |
+          if [ -d .apm ]; then
+            find .apm -type f \( -name '*.md' -o -name '*.json' \) -print0 \
+              | xargs -0 -r -I{} apm audit --file {}
+          else
+            echo "No .apm directory yet — nothing to audit."
+          fi
+
+      - name: Release gates (dry-run)
+        # --check-versions: per-package versions agree with the lockstep strategy
+        # --check-clean:    .claude-plugin/marketplace.json matches apm.yml (no drift)
+        run: apm pack --check-versions --check-clean --dry-run

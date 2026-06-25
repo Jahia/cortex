@@ -1,0 +1,55 @@
+name: Integration (Claude Code)
+
+# End-to-end test of the repository's own content: install this repo into a
+# throwaway consumer for the `claude` target, then ask Claude Code (via the
+# cortex-selftest subagent) for a token that lives only inside that agent. If the
+# token comes back, the author -> install -> assistant pipeline works.
+#
+# Requires a repo/org secret ANTHROPIC_API_KEY (Claude Code authentication).
+# Without it the job no-ops, so forks and external PRs stay green.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  claude-selftest:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Gate on Anthropic API key
+        id: gate
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::ANTHROPIC_API_KEY not set — skipping live Claude Code integration test."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Install APM CLI
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          curl -sSL https://aka.ms/apm-unix | APM_INSTALL_DIR="$HOME/.local/bin" sh -s -- @v0.21.0
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Set up Node
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Claude Code
+        if: steps.gate.outputs.run == 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run Claude self-test
+        if: steps.gate.outputs.run == 'true'
+        run: bash tests/integration/claude-selftest.sh

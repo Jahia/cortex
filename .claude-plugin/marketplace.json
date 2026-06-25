@@ -1,0 +1,15 @@
+{
+  "name": "cortex",
+  "owner": {
+    "name": "Jahia",
+    "url": "https://github.com/Jahia"
+  },
+  "plugins": [
+    {
+      "name": "cortex",
+      "description": "Jahia's shared AI development capabilities for building with Jahia.",
+      "version": "0.1.0",
+      "source": "./"
+    }
+  ]
+}

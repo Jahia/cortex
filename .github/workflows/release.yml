@@ -1,0 +1,47 @@
+name: Release
+
+# Turn a `v*` tag into a GitHub Release with packed artifacts + checksums.
+# The tag must match marketplace.build.tagPattern ("v{version}") so the
+# --check-versions gate agrees with apm.yml.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install APM CLI
+        # Official install script (https://microsoft.github.io/apm/), pinned.
+        run: |
+          curl -sSL https://aka.ms/apm-unix | APM_INSTALL_DIR="$HOME/.local/bin" sh -s -- @v0.21.0
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify APM CLI
+        run: apm --version
+
+      - name: Pack (with release gates)
+        run: apm pack --check-versions --check-clean --archive --output ./build
+
+      - name: Generate checksums
+        run: |
+          cd build
+          for f in *.zip; do
+            sha256sum "$f" > "$f.sha256"
+          done
+          ls -l
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            build/*.zip build/*.sha256 \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
