@@ -17,13 +17,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Install APM CLI
+        # Official install script (https://microsoft.github.io/apm/), pinned.
+        run: |
+          curl -sSL https://aka.ms/apm-unix | APM_INSTALL_DIR="$HOME/.local/bin" sh -s -- @v0.21.0
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Install apm-cli
-        run: pip install "apm-cli==0.21.0"
+      - name: Verify APM CLI
+        run: apm --version
 
       - name: Pack (with release gates)
         run: apm pack --check-versions --check-clean --archive --output ./build

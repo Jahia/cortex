@@ -1,0 +1,56 @@
+name: Integration (Copilot CLI)
+
+# End-to-end test of the repository's own content: pack the marketplace, install
+# the bundle into a throwaway consumer, and ask GitHub Copilot CLI (via the
+# cortex-selftest agent) for a token that lives only inside that agent. If the
+# token comes back, the author -> pack -> install -> assistant pipeline works.
+#
+# Requires a repo/org secret COPILOT_GITHUB_TOKEN: a fine-grained PAT with the
+# "Copilot Requests" permission (the default GITHUB_TOKEN has no Copilot access).
+# Without it the job no-ops, so forks and external PRs stay green.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  copilot-selftest:
+    runs-on: ubuntu-latest
+    env:
+      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+    steps:
+      - name: Gate on Copilot token
+        id: gate
+        run: |
+          if [ -z "$COPILOT_GITHUB_TOKEN" ]; then
+            echo "::notice::COPILOT_GITHUB_TOKEN not set — skipping live Copilot CLI integration test."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Install APM CLI
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          curl -sSL https://aka.ms/apm-unix | APM_INSTALL_DIR="$HOME/.local/bin" sh -s -- @v0.21.0
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Set up Node
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install GitHub Copilot CLI
+        if: steps.gate.outputs.run == 'true'
+        run: npm install -g @github/copilot
+
+      - name: Run Copilot self-test
+        if: steps.gate.outputs.run == 'true'
+        run: bash tests/integration/copilot-selftest.sh
