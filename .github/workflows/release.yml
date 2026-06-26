@@ -1,8 +1,26 @@
 name: Release
 
-# Turn a `v*` tag into a GitHub Release with packed artifacts + checksums.
-# The tag must match marketplace.build.tagPattern ("v{version}") so the
-# --check-versions gate agrees with apm.yml.
+# Cut a release entirely from the GitHub UI — the version is kept in sync for you.
+#
+# To release:  GitHub → Releases → "Draft a new release" → create a new tag
+#              `vX.Y.Z` (target: main) → Publish.
+#
+# This workflow then:
+#   1. derives the version from the tag (`v0.2.1` → `0.2.1`),
+#   2. writes it into apm.yml (both lockstep fields) and regenerates
+#      .claude-plugin/marketplace.json,
+#   3. commits that bump to `main` via the GitHub API (so the commit is *signed*),
+#      and moves the tag onto the bump commit — because consumers installing
+#      `Jahia/cortex#vX.Y.Z` read apm.yml from the repo tree at that tag, the
+#      version must live on the tagged commit,
+#   4. packs and uploads the artifacts (+ checksums) to the release.
+#
+# Re-running is safe: if apm.yml already matches the tag, it just rebuilds and
+# re-uploads (no commit, no tag move).
+#
+# Note: step 3 writes to `main`. cortex's `main` is currently unprotected, so this
+# works as-is. Once org rulesets enforce PR-only/signed commits on `main`, add this
+# workflow (or the org release app) as a *bypass actor* on the branch ruleset.
 on:
   push:
     tags: ["v*"]
@@ -13,9 +31,14 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v7
+        with:
+          ref: main
 
       - name: Install APM CLI
         # Official install script (https://microsoft.github.io/apm/), pinned.
@@ -26,20 +49,60 @@ jobs:
       - name: Verify APM CLI
         run: apm --version
 
-      - name: Check tag matches apm.yml version
-        # apm pack --check-versions only verifies internal lockstep alignment, not
-        # that the pushed tag matches the declared version. Guard against tagging a
-        # release without bumping apm.yml (tagPattern is "v{version}").
+      - name: Resolve version from tag
+        id: ver
         run: |
-          VERSION="$(grep -E '^version:' apm.yml | head -1 | sed -E 's/^version:[[:space:]]*//; s/["'\'' ]//g')"
-          EXPECTED="v${VERSION}"
-          if [ "$GITHUB_REF_NAME" != "$EXPECTED" ]; then
-            echo "::error::Tag '$GITHUB_REF_NAME' does not match apm.yml version ('$EXPECTED'). Bump apm.yml before tagging."
+          VERSION="${GITHUB_REF_NAME#v}"
+          CURRENT="$(grep -E '^version:' apm.yml | head -1 | sed -E 's/^version:[[:space:]]*//; s/["'\'' ]//g')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "Tag version: '$VERSION' (apm.yml currently: '$CURRENT')"
+
+      - name: Bump version + regenerate marketplace.json
+        if: steps.ver.outputs.version != steps.ver.outputs.current
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          # Both lockstep version fields: top-level (col 0) and the package (indented).
+          sed -i -E "s/^version:[[:space:]].*/version: ${VERSION}/" apm.yml
+          sed -i -E "s/^([[:space:]]+)version:[[:space:]].*/\1version: ${VERSION}/" apm.yml
+          # Regenerate marketplace.json and build the artifact from the bumped tree.
+          # (--check-clean is intentionally omitted here: marketplace.json is stale
+          #  until this pack rewrites it.)
+          apm pack --check-versions --archive --output ./build
+
+      - name: Commit bump to main (signed, via API) and move the tag
+        if: steps.ver.outputs.version != steps.ver.outputs.current
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          HEAD_OID="$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)"
+          NEW_OID="$(jq -n \
+            --arg repo "$REPO" \
+            --arg msg "chore(release): bump version to ${VERSION} [skip ci]" \
+            --arg oid "$HEAD_OID" \
+            --arg apm "$(base64 -w0 apm.yml)" \
+            --arg mkt "$(base64 -w0 .claude-plugin/marketplace.json)" \
+            '{query:"mutation($input: CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}",
+              variables:{input:{
+                branch:{repositoryNameWithOwner:$repo,branchName:"main"},
+                message:{headline:$msg},
+                expectedHeadOid:$oid,
+                fileChanges:{additions:[
+                  {path:"apm.yml",contents:$apm},
+                  {path:".claude-plugin/marketplace.json",contents:$mkt}
+                ]}}}}' \
+            | gh api graphql --input - --jq '.data.createCommitOnBranch.commit.oid')"
+          if [ -z "$NEW_OID" ] || [ "$NEW_OID" = "null" ]; then
+            echo "::error::Failed to create the version-bump commit on main."
             exit 1
           fi
-          echo "Tag '$GITHUB_REF_NAME' matches apm.yml version."
+          echo "Bumped main -> $NEW_OID"
+          # Move the tag onto the bump commit so the tagged tree carries the version.
+          gh api -X PATCH "repos/$REPO/git/refs/tags/${GITHUB_REF_NAME}" \
+            -f sha="$NEW_OID" -F force=true >/dev/null
+          echo "Moved tag ${GITHUB_REF_NAME} -> $NEW_OID"
 
-      - name: Pack (with release gates)
+      - name: Pack (version already aligned — re-run)
+        if: steps.ver.outputs.version == steps.ver.outputs.current
         run: apm pack --check-versions --check-clean --archive --output ./build
 
       - name: Generate checksums
@@ -50,16 +113,12 @@ jobs:
           done
           ls -l
 
-      - name: Create or update GitHub Release
-        # Idempotent: a tag push normally creates the release here, but if the
-        # release/tag was created another way first (e.g. via the GitHub UI, which
-        # creates the tag and triggers this workflow), the release already exists —
-        # so upload the artifacts instead of failing. Also makes re-runs safe.
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Upload artifacts to the release
+        # Idempotent: the UI already created the release; upload (clobber) into it.
+        # The create branch covers tag pushes that arrive without a release object.
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME already exists — uploading artifacts (clobber)."
+            echo "Release $GITHUB_REF_NAME exists — uploading artifacts (clobber)."
             gh release upload "$GITHUB_REF_NAME" build/*.zip build/*.sha256 --clobber
           else
             gh release create "$GITHUB_REF_NAME" \
