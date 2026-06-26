@@ -26,6 +26,19 @@ jobs:
       - name: Verify APM CLI
         run: apm --version
 
+      - name: Check tag matches apm.yml version
+        # apm pack --check-versions only verifies internal lockstep alignment, not
+        # that the pushed tag matches the declared version. Guard against tagging a
+        # release without bumping apm.yml (tagPattern is "v{version}").
+        run: |
+          VERSION="$(grep -E '^version:' apm.yml | head -1 | sed -E 's/^version:[[:space:]]*//; s/["'\'' ]//g')"
+          EXPECTED="v${VERSION}"
+          if [ "$GITHUB_REF_NAME" != "$EXPECTED" ]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match apm.yml version ('$EXPECTED'). Bump apm.yml before tagging."
+            exit 1
+          fi
+          echo "Tag '$GITHUB_REF_NAME' matches apm.yml version."
+
       - name: Pack (with release gates)
         run: apm pack --check-versions --check-clean --archive --output ./build
 
