@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install APM CLI
         # Official install script (https://microsoft.github.io/apm/), pinned.
@@ -37,11 +37,20 @@ jobs:
           done
           ls -l
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
+        # Idempotent: a tag push normally creates the release here, but if the
+        # release/tag was created another way first (e.g. via the GitHub UI, which
+        # creates the tag and triggers this workflow), the release already exists —
+        # so upload the artifacts instead of failing. Also makes re-runs safe.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            build/*.zip build/*.sha256 \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists — uploading artifacts (clobber)."
+            gh release upload "$GITHUB_REF_NAME" build/*.zip build/*.sha256 --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              build/*.zip build/*.sha256 \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi

@@ -32,7 +32,7 @@ jobs:
 
       - name: Checkout
         if: steps.gate.outputs.run == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install APM CLI
         if: steps.gate.outputs.run == 'true'
@@ -42,9 +42,9 @@ jobs:
 
       - name: Set up Node
         if: steps.gate.outputs.run == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install Claude Code
         if: steps.gate.outputs.run == 'true'
