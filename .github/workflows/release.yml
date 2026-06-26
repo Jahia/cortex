@@ -1,44 +1,53 @@
 name: Release
 
-# Cut a release entirely from the GitHub UI — the version is kept in sync for you.
+# Cut a release from the GitHub UI — the version is kept in sync automatically.
 #
-# To release:  GitHub → Releases → "Draft a new release" → create a new tag
-#              `vX.Y.Z` (target: main) → Publish.
+# To release:  GitHub → Releases → "Draft a new release" → new tag `vX.Y.Z`
+#              (target: main) → Publish.
 #
-# This workflow then:
+# This workflow authenticates as **jahia-ci over SSH** (org secret
+# GH_SSH_PRIVATE_KEY_JAHIACI) and, on a `v*` tag:
 #   1. derives the version from the tag (`v0.2.1` → `0.2.1`),
-#   2. writes it into apm.yml (both lockstep fields) and regenerates
-#      .claude-plugin/marketplace.json,
-#   3. commits that bump to `main` via the GitHub API (so the commit is *signed*),
-#      and moves the tag onto the bump commit — because consumers installing
-#      `Jahia/cortex#vX.Y.Z` read apm.yml from the repo tree at that tag, the
+#   2. if apm.yml doesn't already match: bumps both lockstep version fields +
+#      regenerates .claude-plugin/marketplace.json, commits to `main` and pushes,
+#      then force-moves the tag onto that bump commit — consumers install
+#      `Jahia/cortex#vX.Y.Z` and read apm.yml from the repo tree at the tag, so the
 #      version must live on the tagged commit,
-#   4. packs and uploads the artifacts (+ checksums) to the release.
+#   3. packs and uploads the artifacts (+ checksums) to the release.
+# Re-running is safe (idempotent): if apm.yml already matches, it just rebuilds
+# and re-uploads (no commit, no tag move) — this is also the path taken by the
+# extra run that the tag force-move itself triggers.
 #
-# Re-running is safe: if apm.yml already matches the tag, it just rebuilds and
-# re-uploads (no commit, no tag move).
-#
-# Note: step 3 writes to `main`. cortex's `main` is currently unprotected, so this
-# works as-is. Once org rulesets enforce PR-only/signed commits on `main`, add this
-# workflow (or the org release app) as a *bypass actor* on the branch ruleset.
+# Prerequisites (one-time):
+#   - Org secret GH_SSH_PRIVATE_KEY_JAHIACI visible to this repo; jahia-ci has
+#     write access to cortex.
+#   - jahia-ci is a *bypass actor* on the tag-protection ruleset (tags are
+#     otherwise immutable, so the force-move would be rejected). Add it to the
+#     branch ruleset bypass list too once `main` is protected.
 on:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: write   # gh release create/upload via GITHUB_TOKEN
 
 jobs:
   release:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      REPO: ${{ github.repository }}
     steps:
-      - name: Checkout main
+      - name: Checkout main (as jahia-ci over SSH)
         uses: actions/checkout@v7
         with:
           ref: main
+          ssh-key: ${{ secrets.GH_SSH_PRIVATE_KEY_JAHIACI }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "jahia-ci"
+          git config user.email "jahia-ci@jahia.com"
 
       - name: Install APM CLI
         # Official install script (https://microsoft.github.io/apm/), pinned.
@@ -58,48 +67,22 @@ jobs:
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           echo "Tag version: '$VERSION' (apm.yml currently: '$CURRENT')"
 
-      - name: Bump version + regenerate marketplace.json
+      - name: Bump version, commit to main, move tag
         if: steps.ver.outputs.version != steps.ver.outputs.current
         run: |
           VERSION="${{ steps.ver.outputs.version }}"
           # Both lockstep version fields: top-level (col 0) and the package (indented).
           sed -i -E "s/^version:[[:space:]].*/version: ${VERSION}/" apm.yml
           sed -i -E "s/^([[:space:]]+)version:[[:space:]].*/\1version: ${VERSION}/" apm.yml
-          # Regenerate marketplace.json and build the artifact from the bumped tree.
-          # (--check-clean is intentionally omitted here: marketplace.json is stale
-          #  until this pack rewrites it.)
+          # Regenerate marketplace.json + build the artifact from the bumped tree.
           apm pack --check-versions --archive --output ./build
-
-      - name: Commit bump to main (signed, via API) and move the tag
-        if: steps.ver.outputs.version != steps.ver.outputs.current
-        run: |
-          VERSION="${{ steps.ver.outputs.version }}"
-          HEAD_OID="$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)"
-          NEW_OID="$(jq -n \
-            --arg repo "$REPO" \
-            --arg msg "chore(release): bump version to ${VERSION} [skip ci]" \
-            --arg oid "$HEAD_OID" \
-            --arg apm "$(base64 -w0 apm.yml)" \
-            --arg mkt "$(base64 -w0 .claude-plugin/marketplace.json)" \
-            '{query:"mutation($input: CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}",
-              variables:{input:{
-                branch:{repositoryNameWithOwner:$repo,branchName:"main"},
-                message:{headline:$msg},
-                expectedHeadOid:$oid,
-                fileChanges:{additions:[
-                  {path:"apm.yml",contents:$apm},
-                  {path:".claude-plugin/marketplace.json",contents:$mkt}
-                ]}}}}' \
-            | gh api graphql --input - --jq '.data.createCommitOnBranch.commit.oid')"
-          if [ -z "$NEW_OID" ] || [ "$NEW_OID" = "null" ]; then
-            echo "::error::Failed to create the version-bump commit on main."
-            exit 1
-          fi
-          echo "Bumped main -> $NEW_OID"
-          # Move the tag onto the bump commit so the tagged tree carries the version.
-          gh api -X PATCH "repos/$REPO/git/refs/tags/${GITHUB_REF_NAME}" \
-            -f sha="$NEW_OID" -F force=true >/dev/null
-          echo "Moved tag ${GITHUB_REF_NAME} -> $NEW_OID"
+          git add apm.yml .claude-plugin/marketplace.json
+          git commit -m "chore(release): bump version to ${VERSION}"
+          git push origin HEAD:main
+          # Force-move the (policy-immutable) tag onto the bump commit. Requires
+          # jahia-ci to be a bypass actor on the tag ruleset.
+          git tag -f "${GITHUB_REF_NAME}" HEAD
+          git push --force origin "refs/tags/${GITHUB_REF_NAME}"
 
       - name: Pack (version already aligned — re-run)
         if: steps.ver.outputs.version == steps.ver.outputs.current
