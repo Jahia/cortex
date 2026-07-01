@@ -1,5 +1,5 @@
 name: cortex
-version: 0.2.2
+version: 0.3.0
 description: Jahia's shared AI development capabilities, distributed via APM.
 author: Jahia
 license: MIT
@@ -26,4 +26,4 @@ marketplace:
     - name: cortex
       description: Jahia's shared AI development capabilities for building with Jahia.
       source: ./
-      version: 0.2.2
+      version: 0.3.0
